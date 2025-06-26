@@ -143,15 +143,27 @@ export class EscrowBox {
           );
 
           // Approve both PRs
-          await Promise.all([
-            approvePr(repoFullName, prNumber, prAuthorToken, this.env), // PR author approves userA's PR
-            approvePr(
-              matchingPledge.value.repo,
-              matchingPledge.value.prNumber,
-              userAToken,
-              this.env
-            ), // userA approves PR author's PR
-          ]);
+          try {
+            await Promise.all([
+              approvePr(repoFullName, prNumber, prAuthorToken, this.env), // PR author approves userA's PR
+              approvePr(
+                matchingPledge.value.repo,
+                matchingPledge.value.prNumber,
+                userAToken,
+                this.env
+              ), // userA approves PR author's PR
+            ]);
+          } catch (approvalError) {
+            console.error("❌ Error during PR approval:", approvalError);
+            return {
+              type: "error",
+              message: `Failed to approve PRs: ${
+                approvalError instanceof Error
+                  ? approvalError.message
+                  : "Unknown error"
+              }`,
+            };
+          }
 
           // Delete the pledge and user ID mapping
           await txn.delete(matchingPledge.key);

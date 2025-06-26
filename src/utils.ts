@@ -334,6 +334,54 @@ export async function approvePr(
   userToken: string,
   env: any
 ): Promise<void> {
+  console.log(`🔍 Attempting to approve ${repoFullName}#${prNumber}`);
+
+  // First, check if user already has an approved review
+  try {
+    const existingReviewsResponse = await fetch(
+      `https://api.github.com/repos/${repoFullName}/pulls/${prNumber}/reviews`,
+      {
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "quid-pr-quo",
+        },
+      }
+    );
+
+    if (existingReviewsResponse.ok) {
+      const reviews = (await existingReviewsResponse.json()) as any[];
+      // Get the user info to find their reviews
+      const userResponse = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "quid-pr-quo",
+        },
+      });
+
+      if (userResponse.ok) {
+        const user = (await userResponse.json()) as any;
+        const userApprovalReviews = reviews.filter(
+          (review: any) =>
+            review.user.id === user.id && review.state === "APPROVED"
+        );
+
+        if (userApprovalReviews.length > 0) {
+          console.log(
+            `ℹ️ User ${user.login} already has an approved review for PR #${prNumber}`
+          );
+          return; // User already approved, no need to re-approve
+        }
+      }
+    }
+  } catch (checkError) {
+    console.log(
+      `⚠️ Could not check existing reviews, proceeding with approval attempt`
+    );
+  }
+
+  // Proceed with creating a new approval
   const response = await fetch(
     `https://api.github.com/repos/${repoFullName}/pulls/${prNumber}/reviews`,
     {
@@ -353,8 +401,35 @@ export async function approvePr(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Failed to approve PR: ${response.status} - ${errorText}`);
+
+    // Handle common scenarios when re-approving
+    if (response.status === 422) {
+      console.log(`⚠️ Cannot approve PR #${prNumber}: ${errorText}`);
+      // This often happens when:
+      // 1. User already has a review but reviews were re-requested
+      // 2. User doesn't have permission to review
+      // 3. PR is already merged/closed
+
+      // Check if it's a "pull request review already submitted" error
+      if (
+        errorText.includes("already submitted") ||
+        errorText.includes("already reviewed") ||
+        errorText.includes("review already exists")
+      ) {
+        console.log(
+          `ℹ️ User already has a review for PR #${prNumber}, considering this successful`
+        );
+        // For now, we'll consider this a success since the intent (approval) is already there
+        return;
+      }
+    }
+
+    throw new Error(
+      `Failed to approve PR #${prNumber}: ${response.status} - ${errorText}`
+    );
   }
+
+  console.log(`✅ Successfully approved PR #${prNumber}`);
 }
 
 // Post a comment to a GitHub issue/PR
