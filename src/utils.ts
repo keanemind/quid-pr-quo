@@ -356,3 +356,73 @@ export async function approvePr(
     throw new Error(`Failed to approve PR: ${response.status} - ${errorText}`);
   }
 }
+
+// Post a comment to a GitHub issue/PR
+export async function postGitHubComment(
+  repoFullName: string,
+  issueNumber: number,
+  comment: string,
+  appId: string,
+  privateKey: string,
+  installationId: string
+): Promise<void> {
+  console.log(`Posting comment to ${repoFullName}#${issueNumber}`);
+
+  try {
+    // Create JWT for app authentication
+    const jwt = await createAppJwt(appId, privateKey);
+
+    // Get installation access token
+    const tokenResponse = await fetch(
+      `https://api.github.com/app/installations/${installationId}/access_tokens`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "quid-pr-quo-worker/1.0",
+        },
+      }
+    );
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      throw new Error(
+        `Failed to get access token: ${tokenResponse.status} ${errorText}`
+      );
+    }
+
+    const tokenData = (await tokenResponse.json()) as { token: string };
+
+    // Post the comment
+    const commentResponse = await fetch(
+      `https://api.github.com/repos/${repoFullName}/issues/${issueNumber}/comments`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenData.token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+          "User-Agent": "quid-pr-quo-worker/1.0",
+        },
+        body: JSON.stringify({
+          body: comment,
+        }),
+      }
+    );
+
+    if (!commentResponse.ok) {
+      const errorText = await commentResponse.text();
+      throw new Error(
+        `Failed to post comment: ${commentResponse.status} ${errorText}`
+      );
+    }
+
+    console.log("✅ Comment posted successfully");
+  } catch (error) {
+    console.error("❌ Failed to post GitHub comment:", error);
+    throw error;
+  }
+}
