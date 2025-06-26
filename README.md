@@ -2,6 +2,19 @@
 
 A GitHub App powered by Cloudflare Durable Objects that enables automatic mutual PR approval exchanges between developers.
 
+## 🚀 Quick Start for Users
+
+### Install the App
+
+1. **Install on your repository**: [Install Quid Pro Quo GitHub App](https://github.com/apps/quid-pr-quo/installations/new)
+
+   - Choose which repositories to give access to
+   - Complete the installation
+
+2. **Use in PRs**: Comment `/escrow-approve` on any PR to start the escrow process
+
+3. **Authorize when prompted**: If needed, the app will provide an OAuth link for authorization
+
 ## How it works
 
 1. Developer A comments `/escrow-approve` on a PR
