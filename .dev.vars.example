@@ -1,0 +1,7 @@
+# Example .dev.vars file for local development
+# Copy this to .dev.vars and fill in your actual values
+
+APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END RSA PRIVATE KEY-----"
+APP_SECRET="your_github_app_client_secret"
+GITHUB_APP_ID="123456"
+GITHUB_APP_INSTALLATION_ID="12345678"

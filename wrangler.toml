@@ -1,0 +1,22 @@
+name = "quid-pr-quo"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Enable observability
+[observability]
+enabled = true
+
+[durable_objects]
+bindings = [
+  { name = "ESCROW", class_name = "EscrowBox" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["EscrowBox"]
+
+# Secrets to set via: wrangler secret put <NAME>
+# APP_PRIVATE_KEY
+# APP_SECRET
+# GITHUB_APP_ID
+# GITHUB_APP_INSTALLATION_ID
