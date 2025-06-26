@@ -79,35 +79,54 @@ export async function createAppJwt(
     .replace(/=/g, "");
 
   const message = `${encodedHeader}.${encodedPayload}`;
-  console.log("JWT message created, importing key...");
+  console.log("JWT message created, processing key...");
 
   try {
-    // Convert PEM to DER format for Web Crypto API
-    const pemContents = privateKey
+    // Handle different PEM formats
+    let cleanKey = privateKey.trim();
+
+    // Remove PKCS#1 headers if present
+    cleanKey = cleanKey
       .replace(/-----BEGIN RSA PRIVATE KEY-----/, "")
       .replace(/-----END RSA PRIVATE KEY-----/, "")
+      .replace(/-----BEGIN PRIVATE KEY-----/, "")
+      .replace(/-----END PRIVATE KEY-----/, "")
       .replace(/\s/g, "");
 
+    console.log("Key cleaned, converting to bytes...");
+
     // Decode base64 to get DER bytes
-    const binaryDer = atob(pemContents);
+    const binaryDer = atob(cleanKey);
     const derBytes = new Uint8Array(binaryDer.length);
     for (let i = 0; i < binaryDer.length; i++) {
       derBytes[i] = binaryDer.charCodeAt(i);
     }
 
-    console.log("Key converted to DER format, importing...");
+    console.log("Key converted to bytes, attempting import...");
 
-    // Try PKCS#8 format first (GitHub's format)
-    const cryptoKey = await crypto.subtle.importKey(
-      "pkcs8",
-      derBytes,
-      {
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256",
-      },
-      false,
-      ["sign"]
-    );
+    let cryptoKey;
+
+    // Try PKCS#8 format first (most common for GitHub Apps)
+    try {
+      console.log("Trying PKCS#8 format...");
+      cryptoKey = await crypto.subtle.importKey(
+        "pkcs8",
+        derBytes,
+        {
+          name: "RSASSA-PKCS1-v1_5",
+          hash: "SHA-256",
+        },
+        false,
+        ["sign"]
+      );
+      console.log("PKCS#8 import successful");
+    } catch (pkcs8Error) {
+      console.log("PKCS#8 failed, trying SPKI format...");
+      // If PKCS#8 fails, the key might be in a different format
+      throw new Error(
+        "Key format not supported. Please ensure you're using a PKCS#8 formatted private key."
+      );
+    }
 
     console.log("Key imported successfully, signing...");
 
