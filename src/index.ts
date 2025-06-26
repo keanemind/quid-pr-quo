@@ -19,26 +19,34 @@ interface Env {
 
 const router = Router();
 
+// Root endpoint - simple welcome message
+router.get("/", () => {
+  return new Response("🤝 Quid Pro Quo - GitHub PR Escrow Service", {
+    status: 200,
+    headers: { "Content-Type": "text/plain" },
+  });
+});
+
 // Simple test endpoint
 router.get("/test", () => {
-  console.log('Test endpoint hit');
-  return new Response('Worker is alive!', { status: 200 });
+  console.log("Test endpoint hit");
+  return new Response("Worker is alive!", { status: 200 });
 });
 
 // OAuth callback handler
 router.get("/oauth/callback", async (request: Request, env: Env) => {
-  console.log('=== OAuth callback hit ===');
-  console.log('Request URL:', request.url);
-  
+  console.log("=== OAuth callback hit ===");
+  console.log("Request URL:", request.url);
+
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  
-  console.log('Code present:', !!code);
-  console.log('State:', state);
+
+  console.log("Code present:", !!code);
+  console.log("State:", state);
 
   if (!code) {
-    console.log('No code provided, returning 400');
+    console.log("No code provided, returning 400");
     return new Response("Missing authorization code", { status: 400 });
   }
 
@@ -137,16 +145,21 @@ router.all("*", () => new Response("Not Found", { status: 404 }));
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    console.log('Worker received request:', request.method, request.url);
+    console.log("Worker received request:", request.method, request.url);
     try {
-      const response = await router.handle(request, env);
-      console.log('Router handled request successfully');
+      const response = await router.fetch(request, env);
+      console.log("Router handled request successfully");
       return response;
     } catch (error) {
-      console.error('Worker error:', error);
-      return new Response(`Worker error: ${error instanceof Error ? error.message : 'Unknown error'}`, { 
-        status: 500 
-      });
+      console.error("Worker error:", error);
+      return new Response(
+        `Worker error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        {
+          status: 500,
+        }
+      );
     }
   },
 };
