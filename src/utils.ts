@@ -51,6 +51,7 @@ export async function createAppJwt(
   appId: string,
   privateKey: string
 ): Promise<string> {
+  console.log("Creating JWT for app ID:", appId);
   const now = Math.floor(Date.now() / 1000);
 
   // JWT Header
@@ -78,48 +79,65 @@ export async function createAppJwt(
     .replace(/=/g, "");
 
   const message = `${encodedHeader}.${encodedPayload}`;
+  console.log("JWT message created, importing key...");
 
-  // Convert PEM to DER format for Web Crypto API
-  const pemContents = privateKey
-    .replace(/-----BEGIN RSA PRIVATE KEY-----/, "")
-    .replace(/-----END RSA PRIVATE KEY-----/, "")
-    .replace(/\s/g, "");
+  try {
+    // Convert PEM to DER format for Web Crypto API
+    const pemContents = privateKey
+      .replace(/-----BEGIN RSA PRIVATE KEY-----/, "")
+      .replace(/-----END RSA PRIVATE KEY-----/, "")
+      .replace(/\s/g, "");
 
-  // Decode base64 to get DER bytes
-  const binaryDer = atob(pemContents);
-  const derBytes = new Uint8Array(binaryDer.length);
-  for (let i = 0; i < binaryDer.length; i++) {
-    derBytes[i] = binaryDer.charCodeAt(i);
+    // Decode base64 to get DER bytes
+    const binaryDer = atob(pemContents);
+    const derBytes = new Uint8Array(binaryDer.length);
+    for (let i = 0; i < binaryDer.length; i++) {
+      derBytes[i] = binaryDer.charCodeAt(i);
+    }
+
+    console.log("Key converted to DER format, importing...");
+
+    // Try PKCS#8 format first (GitHub's format)
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      derBytes,
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        hash: "SHA-256",
+      },
+      false,
+      ["sign"]
+    );
+
+    console.log("Key imported successfully, signing...");
+
+    // Sign the message
+    const signature = await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      new TextEncoder().encode(message)
+    );
+
+    console.log("Message signed, encoding...");
+
+    // Base64url encode the signature
+    const encodedSignature = btoa(
+      String.fromCharCode(...new Uint8Array(signature))
+    )
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+
+    console.log("JWT created successfully");
+    return `${message}.${encodedSignature}`;
+  } catch (error) {
+    console.error("JWT creation failed:", error);
+    throw new Error(
+      `Failed to create JWT: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
-
-  // Import the private key (PKCS#1 RSA private key format)
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8", // GitHub provides PKCS#8 format actually
-    derBytes,
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256",
-    },
-    false,
-    ["sign"]
-  );
-
-  // Sign the message
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(message)
-  );
-
-  // Base64url encode the signature
-  const encodedSignature = btoa(
-    String.fromCharCode(...new Uint8Array(signature))
-  )
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-
-  return `${message}.${encodedSignature}`;
 }
 
 // Exchange OAuth code for user access token
