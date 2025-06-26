@@ -16,6 +16,14 @@ interface GitHubTokenResponse {
   user: GitHubUser;
 }
 
+interface GitHubOAuthTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+}
+
 // Verify GitHub webhook signature using Web Crypto API
 export async function verifyGitHubSignature(
   body: string,
@@ -164,59 +172,68 @@ export async function exchangeOAuthCode(
   code: string,
   env: any
 ): Promise<GitHubTokenResponse> {
-  const appJwt = await createAppJwt(
-    env.GITHUB_APP_ID,
-    env.GITHUB_APP_PRIVATE_KEY
-  );
+  console.log("Exchanging OAuth code for access token...");
 
-  // First, exchange the code for an app installation access token
+  // Use standard GitHub OAuth token exchange
   const tokenResponse = await fetch(
-    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/access_tokens`,
+    "https://github.com/login/oauth/access_token",
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${appJwt}`,
-        Accept: "application/vnd.github.v3+json",
-        "User-Agent": "quid-pr-quo",
-      },
-    }
-  );
-
-  if (!tokenResponse.ok) {
-    throw new Error(
-      `Failed to get installation token: ${tokenResponse.status}`
-    );
-  }
-
-  const tokenResponseData = (await tokenResponse.json()) as { token: string };
-  const { token: installationToken } = tokenResponseData;
-
-  // Now exchange the OAuth code for user access token
-  const userTokenResponse = await fetch(
-    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/user-access-token`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${installationToken}`,
-        Accept: "application/vnd.github.v3+json",
+        Accept: "application/json",
         "Content-Type": "application/json",
         "User-Agent": "quid-pr-quo",
       },
       body: JSON.stringify({
-        code,
         client_id: env.GITHUB_APP_ID,
         client_secret: env.GITHUB_CLIENT_SECRET,
+        code,
       }),
     }
   );
 
-  if (!userTokenResponse.ok) {
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    console.error("Token exchange failed:", errorText);
     throw new Error(
-      `Failed to exchange OAuth code: ${userTokenResponse.status}`
+      `Failed to exchange OAuth code: ${tokenResponse.status} - ${errorText}`
     );
   }
 
-  return userTokenResponse.json();
+  const tokenData = (await tokenResponse.json()) as GitHubOAuthTokenResponse;
+  console.log("Token exchange successful");
+
+  if (tokenData.error) {
+    console.error("OAuth error:", tokenData);
+    throw new Error(
+      `OAuth error: ${tokenData.error_description || tokenData.error}`
+    );
+  }
+
+  // Get user information
+  const userResponse = await fetch("https://api.github.com/user", {
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "quid-pr-quo",
+    },
+  });
+
+  if (!userResponse.ok) {
+    throw new Error(`Failed to get user info: ${userResponse.status}`);
+  }
+
+  const user = (await userResponse.json()) as GitHubUser;
+
+  return {
+    token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token || "",
+    expires_in: tokenData.expires_in || 3600, // Default to 1 hour if not provided
+    user: {
+      id: user.id,
+      login: user.login,
+    },
+  };
 }
 
 // Get user token from storage, refresh if needed

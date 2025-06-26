@@ -33,6 +33,34 @@ router.get("/test", () => {
   return new Response("Worker is alive!", { status: 200 });
 });
 
+// OAuth authorization URL generator
+router.get("/oauth/authorize", (request: Request, env: Env) => {
+  const url = new URL(request.url);
+  const state = url.searchParams.get("state") || "default";
+
+  // Get the current worker URL to construct the redirect URI
+  const workerUrl = new URL(request.url).origin;
+  const redirectUri = `${workerUrl}/oauth/callback`;
+
+  // Construct the GitHub OAuth URL with all required parameters
+  const githubOAuthUrl = new URL("https://github.com/login/oauth/authorize");
+  githubOAuthUrl.searchParams.set("client_id", env.GITHUB_APP_ID);
+  githubOAuthUrl.searchParams.set("redirect_uri", redirectUri);
+  githubOAuthUrl.searchParams.set("scope", "repo");
+  githubOAuthUrl.searchParams.set("state", state);
+
+  return new Response(
+    JSON.stringify({
+      authorization_url: githubOAuthUrl.toString(),
+      redirect_uri: redirectUri,
+      state: state,
+    }),
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+});
+
 // OAuth callback handler
 router.get("/oauth/callback", async (request: Request, env: Env) => {
   console.log("=== OAuth callback hit ===");
@@ -41,18 +69,40 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+  const errorDescription = url.searchParams.get("error_description");
 
   console.log("Code present:", !!code);
   console.log("State:", state);
+  console.log("Error:", error);
+
+  // Handle OAuth errors from GitHub
+  if (error) {
+    console.log("OAuth error from GitHub:", error, errorDescription);
+    return new Response(
+      `OAuth authorization failed: ${error}${
+        errorDescription ? ` - ${errorDescription}` : ""
+      }`,
+      {
+        status: 400,
+        headers: { "Content-Type": "text/plain" },
+      }
+    );
+  }
 
   if (!code) {
     console.log("No code provided, returning 400");
-    return new Response("Missing authorization code", { status: 400 });
+    return new Response("Missing authorization code", {
+      status: 400,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
 
   try {
+    console.log("Attempting to exchange OAuth code...");
     // Exchange code for user access token
     const tokenData = await exchangeOAuthCode(code, env);
+    console.log("OAuth exchange successful for user:", tokenData.user.login);
 
     // Get repository from state or default to main repo
     const repoId = state || "default";
@@ -73,14 +123,19 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
     });
 
     return new Response(
-      "Authorization successful! You can now use /escrow-approve commands.",
+      `✅ Authorization successful for ${tokenData.user.login}! You can now use /escrow-approve commands.`,
       {
         headers: { "Content-Type": "text/plain" },
       }
     );
   } catch (error) {
     console.error("OAuth error:", error);
-    return new Response("Authorization failed", { status: 500 });
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return new Response(`Authorization failed: ${errorMessage}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
 });
 
