@@ -54,12 +54,14 @@ export class EscrowBox {
   // Process escrow-approve command
   private async handleProcessEscrow(request: Request): Promise<Response> {
     try {
-      const { userA, userAId, prNumber, repoFullName } =
+      const { userA, userAId, prNumber, repoFullName, repoId, workerUrl } =
         (await request.json()) as {
           userA: string;
           userAId: string;
           prNumber: number;
           repoFullName: string;
+          repoId: string;
+          workerUrl: string;
         };
 
       // Use atomic transaction to avoid race conditions
@@ -98,9 +100,10 @@ export class EscrowBox {
           );
 
           if (!userAToken || !targetUserToken) {
+            const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
             return {
               type: "error",
-              message: "One or both users need to authorize the app first",
+              message: `One or both users need to authorize the app first. Visit: ${oauthUrl}`,
             };
           }
 
@@ -131,9 +134,10 @@ export class EscrowBox {
             this.env
           );
           if (!userAToken) {
+            const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
             return {
               type: "error",
-              message: `@${userA} needs to authorize the app first. Visit the OAuth link.`,
+              message: `@${userA} needs to authorize the app first. Visit: ${oauthUrl}`,
             };
           }
 

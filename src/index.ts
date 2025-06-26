@@ -213,12 +213,15 @@ router.post("/webhook", async (request: Request, env: Env) => {
   console.log("User:", userA);
   console.log("Is PR:", !!payload.issue.pull_request);
 
-  // Post immediate acknowledgment comment
+  // Post immediate acknowledgment comment with OAuth link if needed
   try {
+    const workerUrl = new URL(request.url).origin;
+    const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
+
     await postGitHubComment(
       repoFullName,
       prNumber,
-      `👋 @${userA} I received your \`/escrow-approve\` command! Processing...`,
+      `👋 @${userA} I received your \`/escrow-approve\` command! Processing...\n\n🔗 If you need to authorize: ${oauthUrl}`,
       env.GITHUB_APP_ID,
       env.GITHUB_APP_PRIVATE_KEY,
       env.GITHUB_APP_INSTALLATION_ID
@@ -243,6 +246,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
         prNumber,
         repoFullName,
         repoId,
+        workerUrl: new URL(request.url).origin,
       }),
     });
 
