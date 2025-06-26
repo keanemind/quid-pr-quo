@@ -13,7 +13,8 @@ interface Env {
   GITHUB_APP_PRIVATE_KEY: string;
   GITHUB_WEBHOOK_SECRET: string;
   GITHUB_CLIENT_SECRET: string;
-  GITHUB_APP_ID: string;
+  GITHUB_CLIENT_ID: string; // OAuth Client ID (starts with Iv)
+  GITHUB_APP_ID: string; // App ID (numeric)
   GITHUB_APP_INSTALLATION_ID: string;
 }
 
@@ -44,7 +45,7 @@ router.get("/oauth/authorize", (request: Request, env: Env) => {
 
   // Construct the GitHub OAuth URL with all required parameters
   const githubOAuthUrl = new URL("https://github.com/login/oauth/authorize");
-  githubOAuthUrl.searchParams.set("client_id", env.GITHUB_APP_ID);
+  githubOAuthUrl.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
   githubOAuthUrl.searchParams.set("redirect_uri", redirectUri);
   githubOAuthUrl.searchParams.set("scope", "repo");
   githubOAuthUrl.searchParams.set("state", state);
@@ -110,7 +111,7 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
     const escrowBox = env.ESCROW.get(objectId);
 
     // Store user token in Durable Object
-    await escrowBox.fetch("/store-token", {
+    await escrowBox.fetch("https://fake-host/store-token", {
       method: "POST",
       body: JSON.stringify({
         userId: tokenData.user.id.toString(),
@@ -123,9 +124,9 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
     });
 
     return new Response(
-      `✅ Authorization successful for ${tokenData.user.login}! You can now use /escrow-approve commands.`,
+      `[SUCCESS] Authorization successful for ${tokenData.user.login}! You can now use /escrow-approve commands.`,
       {
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
       }
     );
   } catch (error) {
@@ -181,7 +182,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   const escrowBox = env.ESCROW.get(objectId);
 
   // Process the escrow command
-  const response = await escrowBox.fetch("/process-escrow", {
+  const response = await escrowBox.fetch("https://fake-host/process-escrow", {
     method: "POST",
     body: JSON.stringify({
       userA,
@@ -193,6 +194,23 @@ router.post("/webhook", async (request: Request, env: Env) => {
   });
 
   return response;
+});
+
+// Debug endpoint to check environment configuration
+router.get("/debug/env", (request: Request, env: Env) => {
+  return new Response(
+    JSON.stringify({
+      app_id: env.GITHUB_APP_ID,
+      client_id: env.GITHUB_CLIENT_ID || "NOT_SET",
+      installation_id: env.GITHUB_APP_INSTALLATION_ID,
+      has_private_key: !!env.GITHUB_APP_PRIVATE_KEY,
+      has_client_secret: !!env.GITHUB_CLIENT_SECRET,
+      has_webhook_secret: !!env.GITHUB_WEBHOOK_SECRET,
+    }),
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 });
 
 // Default handler
