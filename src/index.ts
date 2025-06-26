@@ -304,12 +304,17 @@ router.post("/webhook", async (request: Request, env: Env) => {
 
   // Get PR number from issue (GitHub treats PRs as issues)
   const prNumber = payload.issue.number;
-  const userA = payload.comment.user.login;
+  const userA = payload.comment.user.login; // Person writing the comment
   const userAId = payload.comment.user.id.toString();
+
+  // Get PR author (the person who created the PR)
+  const prAuthor = payload.issue.user?.login;
+  const prAuthorId = payload.issue.user?.id?.toString();
 
   console.log("Repository:", repoFullName);
   console.log("PR/Issue number:", prNumber);
-  console.log("User:", userA);
+  console.log("Comment author:", userA);
+  console.log("PR author:", prAuthor);
   console.log("Is PR:", !!payload.issue.pull_request);
 
   // Post immediate acknowledgment comment with OAuth link if needed
@@ -345,6 +350,8 @@ router.post("/webhook", async (request: Request, env: Env) => {
         prNumber,
         repoFullName,
         repoId,
+        prAuthor,
+        prAuthorId,
         workerUrl: new URL(request.url).origin,
       }),
     });
@@ -354,12 +361,23 @@ router.post("/webhook", async (request: Request, env: Env) => {
     console.log("Response status:", response.status);
     console.log("Response body:", responseText);
 
+    // Parse the JSON response to get the message
+    let finalMessage = responseText;
+    try {
+      const jsonResponse = JSON.parse(responseText);
+      if (jsonResponse.message) {
+        finalMessage = jsonResponse.message;
+      }
+    } catch (parseError) {
+      console.log("Response is not JSON, using as-is");
+    }
+
     // Post result comment
     try {
       await postGitHubComment(
         repoFullName,
         prNumber,
-        `✅ Escrow command processed successfully!\n\n${responseText}`,
+        finalMessage,
         env.GITHUB_APP_ID,
         env.GITHUB_APP_PRIVATE_KEY,
         env.GITHUB_APP_INSTALLATION_ID
@@ -411,6 +429,34 @@ router.get("/debug/env", (request: Request, env: Env) => {
       headers: { "Content-Type": "application/json" },
     }
   );
+});
+
+// Debug endpoint to check pledges for a repository
+router.get("/debug/pledges/:repoId", async (request: Request, env: Env) => {
+  const url = new URL(request.url);
+  const repoId = url.pathname.split("/").pop();
+
+  if (!repoId) {
+    return new Response("Repository ID required", { status: 400 });
+  }
+
+  try {
+    const objectId = env.ESCROW.idFromName(repoId);
+    const escrowBox = env.ESCROW.get(objectId);
+
+    const response = await escrowBox.fetch("https://fake-host/debug-pledges", {
+      method: "GET",
+    });
+
+    return response;
+  } catch (error) {
+    return new Response(
+      `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      {
+        status: 500,
+      }
+    );
+  }
 });
 
 // Webhook test endpoint - accepts any POST without signature verification
