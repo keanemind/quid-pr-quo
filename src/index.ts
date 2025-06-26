@@ -51,16 +51,115 @@ router.get("/oauth/authorize", (request: Request, env: Env) => {
   githubOAuthUrl.searchParams.set("scope", "repo");
   githubOAuthUrl.searchParams.set("state", state);
 
-  return new Response(
-    JSON.stringify({
-      authorization_url: githubOAuthUrl.toString(),
-      redirect_uri: redirectUri,
-      state: state,
-    }),
-    {
-      headers: { "Content-Type": "application/json" },
-    }
-  );
+  // Check if request wants JSON (for API usage)
+  const acceptHeader = request.headers.get("accept") || "";
+  if (acceptHeader.includes("application/json")) {
+    return new Response(
+      JSON.stringify({
+        authorization_url: githubOAuthUrl.toString(),
+        redirect_uri: redirectUri,
+        state: state,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  // Return mobile-friendly HTML page
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize GitHub Access - Quid Pro Quo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f6f8fa;
+            color: #24292f;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 { color: #0969da; margin-bottom: 20px; }
+        .auth-btn {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 20px 0;
+            min-height: 44px;
+            line-height: 1.2;
+        }
+        .auth-btn:hover { background: #2ea043; }
+        .details {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #656d76;
+        }
+        .url-display {
+            background: #f1f3f4;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤝 Quid Pro Quo</h1>
+        <h2>GitHub Authorization Required</h2>
+        <p>To use escrow commands, you need to authorize this app to access your GitHub repositories.</p>
+        
+        <a href="${githubOAuthUrl.toString()}" class="auth-btn">
+            📱 Authorize with GitHub
+        </a>
+        
+        <div class="details">
+            <strong>What this does:</strong><br>
+            • Grants repository access for escrow commands<br>
+            • Allows posting comments on your behalf<br>
+            • State: ${state}
+        </div>
+        
+        <details>
+            <summary style="cursor: pointer; color: #0969da;">🔧 Troubleshooting (tap to expand)</summary>
+            <div style="margin-top: 15px; text-align: left;">
+                <strong>If the link doesn't work:</strong><br>
+                1. Try copying this URL and pasting it in your browser:<br>
+                <div class="url-display">${githubOAuthUrl.toString()}</div>
+                2. Make sure you're not in private browsing mode<br>
+                3. Try a different browser (Chrome, Firefox)<br>
+                4. Disable "Prevent Cross-Site Tracking" in Safari settings<br>
+                5. If you have the GitHub app, try "Open in Safari" instead
+            </div>
+        </details>
+    </div>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 });
 
 // OAuth callback handler
