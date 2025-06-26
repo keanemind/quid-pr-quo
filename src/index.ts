@@ -10,8 +10,9 @@ export { EscrowBox };
 
 interface Env {
   ESCROW: DurableObjectNamespace;
-  APP_PRIVATE_KEY: string;
-  APP_SECRET: string;
+  GITHUB_APP_PRIVATE_KEY: string;
+  GITHUB_WEBHOOK_SECRET: string;
+  GITHUB_CLIENT_SECRET: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_INSTALLATION_ID: string;
 }
@@ -70,7 +71,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   // Verify GitHub signature
   if (
     !signature ||
-    !(await verifyGitHubSignature(body, signature, env.APP_SECRET))
+    !(await verifyGitHubSignature(body, signature, env.GITHUB_WEBHOOK_SECRET))
   ) {
     return new Response("Invalid signature", { status: 401 });
   }

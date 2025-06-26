@@ -127,7 +127,10 @@ export async function exchangeOAuthCode(
   code: string,
   env: any
 ): Promise<GitHubTokenResponse> {
-  const appJwt = await createAppJwt(env.GITHUB_APP_ID, env.APP_PRIVATE_KEY);
+  const appJwt = await createAppJwt(
+    env.GITHUB_APP_ID,
+    env.GITHUB_APP_PRIVATE_KEY
+  );
 
   // First, exchange the code for an app installation access token
   const tokenResponse = await fetch(
@@ -165,7 +168,7 @@ export async function exchangeOAuthCode(
       body: JSON.stringify({
         code,
         client_id: env.GITHUB_APP_ID,
-        client_secret: env.APP_SECRET,
+        client_secret: env.GITHUB_CLIENT_SECRET,
       }),
     }
   );
@@ -219,7 +222,10 @@ async function refreshUserToken(
   refreshToken: string,
   env: any
 ): Promise<GitHubTokenResponse> {
-  const appJwt = await createAppJwt(env.GITHUB_APP_ID, env.APP_PRIVATE_KEY);
+  const appJwt = await createAppJwt(
+    env.GITHUB_APP_ID,
+    env.GITHUB_APP_PRIVATE_KEY
+  );
 
   // Get installation token
   const tokenResponse = await fetch(

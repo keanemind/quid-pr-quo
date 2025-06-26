@@ -16,7 +16,8 @@ tag = "v1"
 new_sqlite_classes = ["EscrowBox"]
 
 # Secrets to set via: wrangler secret put <NAME>
-# APP_PRIVATE_KEY
-# APP_SECRET
-# GITHUB_APP_ID
-# GITHUB_APP_INSTALLATION_ID
+# GITHUB_APP_PRIVATE_KEY - GitHub App private key (PEM format)
+# GITHUB_WEBHOOK_SECRET - GitHub App webhook secret (for HMAC verification) 
+# GITHUB_CLIENT_SECRET - GitHub App client secret (for OAuth)
+# GITHUB_APP_ID - GitHub App ID number
+# GITHUB_APP_INSTALLATION_ID - Installation ID after installing app
