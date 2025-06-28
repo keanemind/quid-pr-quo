@@ -1,43 +1,44 @@
-# Quid Pro Quo - GitHub PR Escrow Approval Bot
+# 🤝 Quid PR Quo - GitHub PR Approval Escrow Service
 
-A GitHub App powered by Cloudflare Durable Objects that enables automatic mutual PR approval exchanges between developers.
+A solution to "I'll review your PR after you review mine": Fair PR approval exchanges between developers.
 
-## 🚀 Quick Start for Users
+## How it works
 
-### Install the App
+1. Developer A comments `/escrow-approve` on Developer B's PR. This doesn't approve the PR yet.
+2. Once Developer B comments `/escrow-approve` on one of Developer A's PRs, both PRs get approved.
+
+## Quick start
+
+### Install the app
 
 1. **Install on your repository**: [Install Quid Pro Quo GitHub App](https://github.com/apps/quid-pr-quo/installations/new)
 
    - Choose which repositories to give access to
    - Complete the installation
 
-2. **Use in PRs**: Comment `/escrow-approve` on any PR to start the escrow process
+2. **Use in PRs**: Comment `/escrow-approve` on any PR to start the escrow process.
 
-3. **Authorize when prompted**: If needed, the app will provide an OAuth link for authorization
+3. **Authorize when prompted**: If needed, the app will provide an OAuth link for authorization. This allows the app to approve PRs on your behalf.
 
-## How it works
-
-1. Developer A comments `/escrow-approve` on a PR
-2. If Developer B has already pledged on another PR, both PRs get automatically approved
-3. If no match exists, a pledge is stored waiting for another developer to match
-
-## 30-Second Deploy Guide
+## Self-host guide
 
 ### Prerequisites
 
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
 - GitHub App created (see setup below)
 
-### Quick Deploy
+### Deploy
 
 ```bash
 # 1. Install dependencies
 npm install
 
 # 2. Set secrets (replace with your values)
-wrangler secret put APP_PRIVATE_KEY
-wrangler secret put APP_SECRET
-wrangler secret put GITHUB_APP_ID
+wrangler secret put GITHUB_APP_PRIVATE_KEY
+wrangler secret put GITHUB_WEBHOOK_SECRET
+wrangler secret put GITHUB_CLIENT_SECRET
+wrangler secret put GITHUB_CLIENT_ID # OAuth Client ID (starts with Iv)
+wrangler secret put GITHUB_APP_ID # App ID (numeric)
 wrangler secret put GITHUB_APP_INSTALLATION_ID
 
 # 3. Deploy
@@ -46,15 +47,15 @@ wrangler deploy
 # 4. Note the deployed URL (e.g., https://quid-pr-quo.your-subdomain.workers.dev)
 ```
 
-### GitHub App Setup
+### GitHub app setup
 
-1. **Create GitHub App**:
+1. **Create GitHub app**:
 
    - Go to GitHub Settings > Developer settings > GitHub Apps
    - Click "New GitHub App"
    - Fill in basic info:
-     - Name: `quid-pr-quo`
-     - Homepage URL: `https://github.com/yourusername/quid-pr-quo`
+     - Name: `your-app-name`
+     - Homepage URL: `https://example.com`
      - Webhook URL: `https://your-worker.workers.dev/webhook`
      - Webhook secret: Generate a random string
 
@@ -70,74 +71,10 @@ wrangler deploy
 3. **Get credentials**:
 
    - App ID: Found on the app's general settings page
+   - App Client ID: Found on the app's general settings page
    - Private key: Generate and download from the app settings
    - Client secret: Generate in the app settings
    - Installation ID: Install the app on a repo, check the URL
 
 4. **Set webhook URL**:
-   - Update webhook URL to: `https://your-deployed-worker.workers.dev/webhook`
-
-### Usage
-
-1. **User Authorization**:
-
-   - Users must first authorize via: `https://your-worker.workers.dev/oauth/callback?code=AUTH_CODE`
-   - (GitHub will redirect here after OAuth flow)
-
-2. **Making Pledges**:
-   - Comment `/escrow-approve` on any PR
-   - If someone else has a pending pledge, both PRs get approved automatically
-   - Otherwise, your pledge waits for a match
-
-### Environment Variables
-
-Set these via `wrangler secret put <NAME>`:
-
-- `APP_PRIVATE_KEY`: Your GitHub App's private key (PEM format)
-- `APP_SECRET`: Your GitHub App's client secret
-- `GITHUB_APP_ID`: Your GitHub App's ID
-- `GITHUB_APP_INSTALLATION_ID`: Installation ID after installing the app
-
-### Development
-
-```bash
-# Local development
-npm run dev
-
-# Deploy to production
-npm run deploy
-
-# View live logs (helpful for debugging)
-wrangler tail
-
-# View live logs with filter
-wrangler tail --format=pretty
-```
-
-### Architecture
-
-- **Cloudflare Worker**: Handles webhooks and OAuth callbacks
-- **Durable Object**: Stores pledges and user tokens per repository
-- **GitHub App**: Provides secure access to approve PRs
-
-### Security
-
-- All webhook payloads are verified with HMAC signatures
-- User tokens are stored encrypted in Durable Objects
-- Automatic token refresh before expiration
-- Atomic transactions prevent race conditions
-
-### Limitations
-
-- Only handles `/escrow-approve` commands (must be first token or sole content)
-- One Durable Object instance per repository
-- Manual cleanup of expired pledges not implemented
-- No UI for viewing pending pledges
-
-## TODO
-
-- [ ] Fill in actual GitHub App credentials
-- [ ] Add pledge expiration and cleanup
-- [ ] Implement target user specification
-- [ ] Add audit logging
-- [ ] Create management UI
+   - Update webhook URL to: `https://your-worker.workers.dev/webhook`
