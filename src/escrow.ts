@@ -196,9 +196,8 @@ export class EscrowBox {
             };
           }
 
-          // Delete the pledge and user ID mapping
+          // Delete the pledge
           await txn.delete(matchingPledge.key);
-          await txn.delete(`userid:${prAuthor}:${prAuthorId}`);
 
           return {
             type: "success",
@@ -233,11 +232,7 @@ export class EscrowBox {
             createdAt: Date.now(),
           };
 
-          // Store the user ID mapping for later lookup
-          const userIdKey = `userid:${userA}:${userAId}`;
-
           await txn.put(pledgeKey, pledgeData);
-          await txn.put(userIdKey, true);
 
           console.log(
             `✅ Created pledge ${pledgeKey} for ${userA} to approve ${prAuthor}'s PR`
