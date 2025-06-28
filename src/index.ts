@@ -1,7 +1,6 @@
 import { Router } from "itty-router";
 import {
   verifyGitHubSignature,
-  createAppJwt,
   exchangeOAuthCode,
   postGitHubComment,
 } from "./utils";

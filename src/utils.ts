@@ -55,7 +55,7 @@ export async function verifyGitHubSignature(
 }
 
 // Create GitHub App JWT for authentication using Web Crypto API
-export async function createAppJwt(
+async function createAppJwt(
   appId: string,
   privateKey: string
 ): Promise<string> {
