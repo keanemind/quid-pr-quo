@@ -32,22 +32,36 @@ export class EscrowBox {
       return this.handleProcessEscrow(request);
     }
 
-    if (url.pathname === "/debug-pledges" && request.method === "GET") {
-      return this.handleDebugPledges();
-    }
-
     return new Response("Not Found", { status: 404 });
   }
 
   // Store user OAuth token
   private async handleStoreToken(request: Request): Promise<Response> {
     try {
-      const { userId, tokenData } = (await request.json()) as {
+      const { userId, tokenData, repoId } = (await request.json()) as {
         userId: string;
         tokenData: TokenData;
+        repoId: string;
       };
 
-      await this.storage.put(`token:${userId}`, tokenData);
+      // Look up installation ID for this repository
+      const installationId = (await this.storage.get(
+        `installation:${repoId}`
+      )) as string | null;
+
+      if (!installationId) {
+        return new Response("Installation ID not found for repository", {
+          status: 404,
+        });
+      }
+
+      // Store token with installation-specific key
+      const tokenKey = `token:${userId}:${installationId}`;
+      await this.storage.put(tokenKey, tokenData);
+
+      console.log(
+        `Token stored for user ${userId} in installation ${installationId}`
+      );
       return new Response("Token stored", { status: 200 });
     } catch (error) {
       console.error("Error storing token:", error);
@@ -67,6 +81,7 @@ export class EscrowBox {
         prAuthor,
         prAuthorId,
         workerUrl,
+        installationId,
       } = (await request.json()) as {
         userA: string;
         userAId: string;
@@ -76,10 +91,14 @@ export class EscrowBox {
         prAuthor?: string;
         prAuthorId?: string;
         workerUrl: string;
+        installationId: string;
       };
 
       // Use atomic transaction to avoid race conditions
       const result = await this.storage.transaction(async (txn) => {
+        // Store the installation ID for this repository
+        await txn.put(`installation:${repoId}`, installationId);
+
         // Validate that userA is not the same as prAuthor (can't approve your own PR)
         if (userA === prAuthor) {
           return {
@@ -121,20 +140,32 @@ export class EscrowBox {
           const userAToken = await getUserToken(
             userAId,
             this.storage,
-            this.env
+            this.env,
+            installationId
           );
 
           const prAuthorToken = await getUserToken(
             prAuthorId,
             this.storage,
-            this.env
+            this.env,
+            installationId
           );
 
           if (!userAToken || !prAuthorToken) {
             const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
+            let errorDetails = "";
+
+            if (!userAToken && !prAuthorToken) {
+              errorDetails = `Both @${userA} and @${prAuthor} need to authorize`;
+            } else if (!userAToken) {
+              errorDetails = `@${userA} needs to authorize`;
+            } else {
+              errorDetails = `@${prAuthor} needs to authorize`;
+            }
+
             return {
               type: "error",
-              message: `One or both users need to authorize the app first. Visit: ${oauthUrl}`,
+              message: `${errorDetails} the app for this repository. Visit: ${oauthUrl}`,
             };
           }
 
@@ -183,13 +214,14 @@ export class EscrowBox {
           const userAToken = await getUserToken(
             userAId,
             this.storage,
-            this.env
+            this.env,
+            installationId
           );
           if (!userAToken) {
             const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
             return {
               type: "error",
-              message: `@${userA} needs to authorize the app first. Visit: ${oauthUrl}`,
+              message: `@${userA} needs to authorize the app for this repository. Visit: ${oauthUrl}`,
             };
           }
 
@@ -225,50 +257,6 @@ export class EscrowBox {
     } catch (error) {
       console.error("Error processing escrow:", error);
       return new Response("Internal error", { status: 500 });
-    }
-  }
-
-  // Debug method to inspect current pledges
-  private async handleDebugPledges(): Promise<Response> {
-    try {
-      const pledgeKeys = await this.storage.list({ prefix: `pledge:` });
-      const userIdKeys = await this.storage.list({ prefix: `userid:` });
-      const tokenKeys = await this.storage.list({ prefix: `token:` });
-
-      const pledges = [];
-      for (const [key, value] of pledgeKeys) {
-        pledges.push({
-          key,
-          value: value as PledgeData,
-        });
-      }
-
-      const userIds = [];
-      for (const [key] of userIdKeys) {
-        userIds.push(key);
-      }
-
-      const tokens = [];
-      for (const [key] of tokenKeys) {
-        tokens.push(key);
-      }
-
-      return new Response(
-        JSON.stringify({
-          pledges,
-          userIds,
-          tokens,
-          pledgeCount: pledges.length,
-          userIdCount: userIds.length,
-          tokenCount: tokens.length,
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Error getting debug info:", error);
-      return new Response("Error getting debug info", { status: 500 });
     }
   }
 }

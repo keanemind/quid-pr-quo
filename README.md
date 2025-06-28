@@ -39,7 +39,6 @@ wrangler secret put GITHUB_WEBHOOK_SECRET
 wrangler secret put GITHUB_CLIENT_SECRET
 wrangler secret put GITHUB_CLIENT_ID # OAuth Client ID (starts with Iv)
 wrangler secret put GITHUB_APP_ID # App ID (numeric)
-wrangler secret put GITHUB_APP_INSTALLATION_ID
 
 # 3. Deploy
 wrangler deploy

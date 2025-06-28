@@ -240,30 +240,49 @@ export async function exchangeOAuthCode(
 export async function getUserToken(
   userId: string,
   storage: DurableObjectStorage,
-  env: any
+  env: any,
+  currentInstallationId: string
 ): Promise<string | null> {
-  const tokenData = (await storage.get(`token:${userId}`)) as TokenData | null;
+  if (!currentInstallationId) {
+    console.error("No installation ID provided for getUserToken");
+    return null;
+  }
+
+  // Use installation-specific token key
+  const tokenKey = `token:${userId}:${currentInstallationId}`;
+  const tokenData = (await storage.get(tokenKey)) as TokenData | null;
 
   if (!tokenData) {
+    console.log(
+      `No token found for user ${userId} in installation ${currentInstallationId}`
+    );
     return null;
   }
 
   // Check if token needs refresh (5 minutes before expiry)
   if (Date.now() > tokenData.expires - 300000) {
     try {
-      const refreshedToken = await refreshUserToken(tokenData.refresh, env);
+      const refreshedToken = await refreshUserToken(
+        tokenData.refresh,
+        env,
+        currentInstallationId
+      );
 
-      // Update stored token
+      // Update stored token for this specific installation
       const newTokenData: TokenData = {
         access: refreshedToken.token,
         refresh: refreshedToken.refresh_token || tokenData.refresh,
         expires: Date.now() + refreshedToken.expires_in * 1000,
       };
 
-      await storage.put(`token:${userId}`, newTokenData);
+      await storage.put(tokenKey, newTokenData);
       return newTokenData.access;
     } catch (error) {
-      console.error("Failed to refresh token:", error);
+      console.error(
+        `Failed to refresh token for installation ${currentInstallationId}:`,
+        error
+      );
+      // Return null so the caller can handle re-authorization
       return null;
     }
   }
@@ -274,7 +293,8 @@ export async function getUserToken(
 // Refresh user access token
 async function refreshUserToken(
   refreshToken: string,
-  env: any
+  env: any,
+  installationId: string
 ): Promise<GitHubTokenResponse> {
   const appJwt = await createAppJwt(
     env.GITHUB_APP_ID,
@@ -283,7 +303,7 @@ async function refreshUserToken(
 
   // Get installation token
   const tokenResponse = await fetch(
-    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/access_tokens`,
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
       headers: {
@@ -305,7 +325,7 @@ async function refreshUserToken(
 
   // Refresh user token
   const refreshResponse = await fetch(
-    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/user-access-token`,
+    `https://api.github.com/app/installations/${installationId}/user-access-token`,
     {
       method: "POST",
       headers: {
@@ -500,4 +520,12 @@ export async function postGitHubComment(
     console.error("❌ Failed to post GitHub comment:", error);
     throw error;
   }
+}
+
+// Helper function to get installation-specific token key
+export function getInstallationTokenKey(
+  userId: string,
+  installationId: string
+): string {
+  return `token:${userId}:${installationId}`;
 }

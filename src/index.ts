@@ -15,7 +15,6 @@ interface Env {
   GITHUB_CLIENT_SECRET: string;
   GITHUB_CLIENT_ID: string; // OAuth Client ID (starts with Iv)
   GITHUB_APP_ID: string; // App ID (numeric)
-  GITHUB_APP_INSTALLATION_ID: string;
 }
 
 const router = Router();
@@ -209,18 +208,34 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
     const objectId = env.ESCROW.idFromName(repoId);
     const escrowBox = env.ESCROW.get(objectId);
 
-    // Store user token in Durable Object
-    await escrowBox.fetch("https://fake-host/store-token", {
-      method: "POST",
-      body: JSON.stringify({
-        userId: tokenData.user.id.toString(),
-        tokenData: {
-          access: tokenData.token,
-          refresh: tokenData.refresh_token,
-          expires: Date.now() + tokenData.expires_in * 1000,
-        },
-      }),
-    });
+    // Store user token in Durable Object with installation ID
+    const storeResponse = await escrowBox.fetch(
+      "https://fake-host/store-token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: tokenData.user.id.toString(),
+          repoId,
+          tokenData: {
+            access: tokenData.token,
+            refresh: tokenData.refresh_token,
+            expires: Date.now() + tokenData.expires_in * 1000,
+          },
+        }),
+      }
+    );
+
+    if (!storeResponse.ok) {
+      const errorText = await storeResponse.text();
+      console.error("Failed to store token:", errorText);
+      return new Response(
+        `Authorization failed: Could not find installation for this repository. Please try using /escrow-approve on a PR first.`,
+        {
+          status: 400,
+          headers: { "Content-Type": "text/plain" },
+        }
+      );
+    }
 
     return new Response(
       `[SUCCESS] Authorization successful for ${tokenData.user.login}! You can now use /escrow-approve commands.`,
@@ -301,6 +316,13 @@ router.post("/webhook", async (request: Request, env: Env) => {
   const repoFullName = repo.full_name;
   const repoId = repo.id.toString();
 
+  // Get installation ID from webhook payload (this is repo-specific)
+  const installationId = payload.installation?.id;
+  if (!installationId) {
+    console.log("❌ No installation ID found in webhook payload");
+    return new Response("No installation ID found", { status: 400 });
+  }
+
   // Get PR number from issue (GitHub treats PRs as issues)
   const prNumber = payload.issue.number;
   const userA = payload.comment.user.login; // Person writing the comment
@@ -311,6 +333,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   const prAuthorId = payload.issue.user?.id?.toString();
 
   console.log("Repository:", repoFullName);
+  console.log("Installation ID:", installationId);
   console.log("PR/Issue number:", prNumber);
   console.log("Comment author:", userA);
   console.log("PR author:", prAuthor);
@@ -327,7 +350,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
       `👋 @${userA} I received your \`/escrow-approve\` command! Processing...\n\n🔗 If you need to authorize: ${oauthUrl}`,
       env.GITHUB_APP_ID,
       env.GITHUB_APP_PRIVATE_KEY,
-      env.GITHUB_APP_INSTALLATION_ID
+      installationId.toString()
     );
   } catch (error) {
     console.error("Failed to post acknowledgment comment:", error);
@@ -352,6 +375,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
         prAuthor,
         prAuthorId,
         workerUrl: new URL(request.url).origin,
+        installationId: installationId.toString(),
       }),
     });
 
@@ -379,7 +403,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
         finalMessage,
         env.GITHUB_APP_ID,
         env.GITHUB_APP_PRIVATE_KEY,
-        env.GITHUB_APP_INSTALLATION_ID
+        installationId.toString()
       );
     } catch (error) {
       console.error("Failed to post result comment:", error);
@@ -402,7 +426,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
         }`,
         env.GITHUB_APP_ID,
         env.GITHUB_APP_PRIVATE_KEY,
-        env.GITHUB_APP_INSTALLATION_ID
+        installationId.toString()
       );
     } catch (commentError) {
       console.error("Failed to post error comment:", commentError);
