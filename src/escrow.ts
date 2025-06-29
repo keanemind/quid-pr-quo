@@ -137,16 +137,16 @@ export class EscrowBox {
             let errorDetails = "";
 
             if (!userAToken && !prAuthorToken) {
-              errorDetails = `Both @${userA} and @${prAuthor} need to authorize`;
+              errorDetails = `@${userA} @${prAuthor} Your tokens have expired. You each need to authorize`;
             } else if (!userAToken) {
-              errorDetails = `@${userA} needs to authorize`;
+              errorDetails = `@${userA} Your token has expired. You need to authorize`;
             } else {
-              errorDetails = `@${prAuthor} needs to authorize`;
+              errorDetails = `@${prAuthor} Your token has expired. You need to authorize`;
             }
 
             return {
               type: "error",
-              message: `${errorDetails} the app for this repository. Visit: ${oauthUrl}`,
+              message: `${errorDetails} Quid PR Quo to approve PRs on your behalf. Visit: ${oauthUrl}`,
             };
           }
 
@@ -212,7 +212,7 @@ export class EscrowBox {
             const oauthUrl = `${workerUrl}/oauth/authorize?state=${installationId}`;
             return {
               type: "error",
-              message: `@${userA} needs to authorize the app for this repository. Visit: ${oauthUrl}`,
+              message: `@${userA} You need to authorize Quid PR Quo to approve PRs on your behalf. Visit: ${oauthUrl}`,
             };
           }
 
