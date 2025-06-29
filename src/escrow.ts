@@ -119,21 +119,12 @@ export class EscrowBox {
         );
 
         // Look for a pledge from the PR author (prAuthor) offering to approve userA's PR
-        const pledgeKeys = await txn.list({ prefix: `pledge:${prAuthor}:` });
-        let matchingPledge: { key: string; value: PledgeData } | null = null;
-
-        console.log(`Found ${pledgeKeys.size} pledges from ${prAuthor}`);
-
-        for (const [key, value] of pledgeKeys) {
-          console.log(`Checking pledge ${key}`);
-          matchingPledge = { key, value: value as PledgeData };
-          console.log(`✅ Found matching pledge from ${prAuthor}!`);
-          break; // Take the first (and should be only) pledge from this user
-        }
+        const matchingPledgeKey = `pledge:${prAuthor}:${userA}`;
+        const matchingPledge = await txn.get<PledgeData>(matchingPledgeKey);
 
         if (matchingPledge) {
           console.log(
-            `🤝 Executing mutual approval: ${prAuthor} approves PR #${prNumber}, ${userA} approves PR #${matchingPledge.value.prNumber}`
+            `🤝 Executing mutual approval: ${prAuthor} approves PR #${prNumber}, ${userA} approves PR #${matchingPledge.prNumber}`
           );
 
           // Found a match! Execute mutual approval
@@ -170,7 +161,7 @@ export class EscrowBox {
           }
 
           console.log(
-            `🚀 Approving PRs: #${prNumber} (${repoFullName}) by ${prAuthor} and #${matchingPledge.value.prNumber} (${matchingPledge.value.repo}) by ${userA}`
+            `🚀 Approving PRs: #${prNumber} (${repoFullName}) by ${prAuthor} and #${matchingPledge.prNumber} (${matchingPledge.repo}) by ${userA}`
           );
 
           // Approve both PRs
@@ -178,8 +169,8 @@ export class EscrowBox {
             await Promise.all([
               approvePr(repoFullName, prNumber, prAuthorToken, this.env), // PR author approves userA's PR
               approvePr(
-                matchingPledge.value.repo,
-                matchingPledge.value.prNumber,
+                matchingPledge.repo,
+                matchingPledge.prNumber,
                 userAToken,
                 this.env
               ), // userA approves PR author's PR
@@ -197,11 +188,11 @@ export class EscrowBox {
           }
 
           // Delete the pledge
-          await txn.delete(matchingPledge.key);
+          await txn.delete(matchingPledgeKey);
 
           return {
             type: "success",
-            message: `🎉 Mutual approval completed! @${prAuthor} approved @${userA}'s PR #${matchingPledge.value.prNumber} and @${userA} approved @${prAuthor}'s PR #${prNumber}`,
+            message: `🎉 Mutual approval completed! @${prAuthor} approved @${userA}'s PR #${matchingPledge.prNumber} and @${userA} approved @${prAuthor}'s PR #${prNumber}`,
           };
         } else {
           console.log(
@@ -225,7 +216,7 @@ export class EscrowBox {
           }
 
           // Create a pledge from userA offering to approve prAuthor's current PR
-          const pledgeKey = `pledge:${userA}:${Date.now()}`;
+          const pledgeKey = `pledge:${userA}:${prAuthor}`;
           const pledgeData: PledgeData = {
             prNumber,
             repo: repoFullName,
