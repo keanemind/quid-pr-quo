@@ -73,7 +73,6 @@ wrangler deploy
    - App Client ID: Found on the app's general settings page
    - Private key: Generate and download from the app settings
    - Client secret: Generate in the app settings
-   - Installation ID: Install the app on a repo, check the URL
 
 4. **Set webhook URL**:
    - Update webhook URL to: `https://your-worker.workers.dev/webhook`
