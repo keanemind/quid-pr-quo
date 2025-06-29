@@ -167,11 +167,11 @@ export class EscrowBox {
           // Approve both PRs
           try {
             await Promise.all([
-              approvePr(repoFullName, prNumber, prAuthorToken, this.env), // PR author approves userA's PR
+              approvePr(repoFullName, prNumber, userAToken, this.env), // PR author approves userA's PR
               approvePr(
                 matchingPledge.repo,
                 matchingPledge.prNumber,
-                userAToken,
+                prAuthorToken,
                 this.env
               ), // userA approves PR author's PR
             ]);
