@@ -2,7 +2,9 @@ import { getUserToken, approvePr } from "./utils";
 
 interface PledgeData {
   prNumber: number;
-  repo: string;
+  prUrl: string;
+  repoFullName: string;
+  repoName: string;
   createdAt: number;
 }
 
@@ -65,7 +67,9 @@ export class EscrowBox {
         userA,
         userAId,
         prNumber,
+        prUrl,
         repoFullName,
+        repoName,
         prAuthor,
         prAuthorId,
         workerUrl,
@@ -74,7 +78,9 @@ export class EscrowBox {
         userA: string;
         userAId: string;
         prNumber: number;
+        prUrl: string;
         repoFullName: string;
+        repoName: string;
         prAuthor?: string;
         prAuthorId?: string;
         workerUrl: string;
@@ -145,7 +151,7 @@ export class EscrowBox {
           }
 
           console.log(
-            `🚀 Approving PRs: #${prNumber} (${repoFullName}) by ${prAuthor} and #${matchingPledge.prNumber} (${matchingPledge.repo}) by ${userA}`
+            `🚀 Approving PRs: #${prNumber} (${repoFullName}) by ${prAuthor} and #${matchingPledge.prNumber} (${matchingPledge.repoFullName}) by ${userA}`
           );
 
           // Approve both PRs
@@ -153,7 +159,7 @@ export class EscrowBox {
             await Promise.all([
               approvePr(repoFullName, prNumber, userAToken, this.env), // PR author approves userA's PR
               approvePr(
-                matchingPledge.repo,
+                matchingPledge.repoFullName,
                 matchingPledge.prNumber,
                 prAuthorToken,
                 this.env
@@ -176,7 +182,18 @@ export class EscrowBox {
 
           return {
             type: "success",
-            message: `🎉 Mutual approval completed! @${prAuthor} approved @${userA}'s PR #${matchingPledge.prNumber} and @${userA} approved @${prAuthor}'s PR #${prNumber}`,
+            message: `\
+🎉 Mutual approval completed!
+ - @${prAuthor} approved @${userA}'s PR [#${matchingPledge.prNumber}${
+              matchingPledge.repoFullName === repoFullName
+                ? ""
+                : ` on ${matchingPledge.repoName}`
+            }](${matchingPledge.prUrl})
+ - @${userA} approved @${prAuthor}'s PR [#${prNumber}${
+              matchingPledge.repoFullName === repoFullName
+                ? ""
+                : ` on ${repoName}`
+            }](${prUrl})`,
           };
         } else {
           console.log(
@@ -203,7 +220,9 @@ export class EscrowBox {
           const pledgeKey = `pledge:${userA}:${prAuthor}`;
           const pledgeData: PledgeData = {
             prNumber,
-            repo: repoFullName,
+            prUrl,
+            repoFullName,
+            repoName,
             createdAt: Date.now(),
           };
 

@@ -327,6 +327,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   // Extract repository info
   const repo = payload.repository;
   const repoFullName = repo.full_name;
+  const repoName = repo.name;
 
   // Get installation ID from webhook payload (this is repo-specific)
   const installationId = payload.installation?.id;
@@ -337,6 +338,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
 
   // Get PR number from issue (GitHub treats PRs as issues)
   const prNumber = payload.issue.number;
+  const prUrl = payload.issue.html_url;
   const userA = payload.comment.user.login; // Person writing the comment
   const userAId = payload.comment.user.id.toString();
 
@@ -382,7 +384,9 @@ router.post("/webhook", async (request: Request, env: Env) => {
         userA,
         userAId,
         prNumber,
+        prUrl,
         repoFullName,
+        repoName,
         prAuthor,
         prAuthorId,
         workerUrl: new URL(request.url).origin,
