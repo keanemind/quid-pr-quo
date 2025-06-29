@@ -36,7 +36,14 @@ router.get("/test", () => {
 // OAuth authorization URL generator
 router.get("/oauth/authorize", (request: Request, env: Env) => {
   const url = new URL(request.url);
-  const state = url.searchParams.get("state") || "default";
+  const state = url.searchParams.get("state");
+
+  if (!state) {
+    return new Response("Missing installation id", {
+      status: 400,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
 
   // Get the current worker URL to construct the redirect URI
   const workerUrl = new URL(request.url).origin;
@@ -197,15 +204,21 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
     });
   }
 
+  const installationId = state;
+  if (!installationId) {
+    return new Response("Missing installation id", {
+      status: 400,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
   try {
     console.log("Attempting to exchange OAuth code...");
     // Exchange code for user access token
     const tokenData = await exchangeOAuthCode(code, env);
     console.log("OAuth exchange successful for user:", tokenData.user.login);
 
-    // Get repository from state or default to main repo
-    const repoId = state || "default";
-    const objectId = env.ESCROW.idFromName(repoId);
+    const objectId = env.ESCROW.idFromName(installationId);
     const escrowBox = env.ESCROW.get(objectId);
 
     // Store user token in Durable Object with installation ID
@@ -215,7 +228,7 @@ router.get("/oauth/callback", async (request: Request, env: Env) => {
         method: "POST",
         body: JSON.stringify({
           userId: tokenData.user.id.toString(),
-          repoId,
+          installationId,
           tokenData: {
             access: tokenData.token,
             refresh: tokenData.refresh_token,
@@ -314,7 +327,6 @@ router.post("/webhook", async (request: Request, env: Env) => {
   // Extract repository info
   const repo = payload.repository;
   const repoFullName = repo.full_name;
-  const repoId = repo.id.toString();
 
   // Get installation ID from webhook payload (this is repo-specific)
   const installationId = payload.installation?.id;
@@ -342,7 +354,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   // Post immediate acknowledgment comment with OAuth link if needed
   try {
     const workerUrl = new URL(request.url).origin;
-    const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
+    const oauthUrl = `${workerUrl}/oauth/authorize?state=${installationId}`;
 
     await postGitHubComment(
       repoFullName,
@@ -357,7 +369,7 @@ router.post("/webhook", async (request: Request, env: Env) => {
   }
 
   // Get Durable Object instance for this repo
-  const objectId = env.ESCROW.idFromName(repoId);
+  const objectId = env.ESCROW.idFromName(installationId);
   const escrowBox = env.ESCROW.get(objectId);
 
   console.log("🏗️  Processing escrow command...");
@@ -371,7 +383,6 @@ router.post("/webhook", async (request: Request, env: Env) => {
         userAId,
         prNumber,
         repoFullName,
-        repoId,
         prAuthor,
         prAuthorId,
         workerUrl: new URL(request.url).origin,

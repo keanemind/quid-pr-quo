@@ -38,22 +38,11 @@ export class EscrowBox {
   // Store user OAuth token
   private async handleStoreToken(request: Request): Promise<Response> {
     try {
-      const { userId, tokenData, repoId } = (await request.json()) as {
+      const { userId, tokenData, installationId } = (await request.json()) as {
         userId: string;
         tokenData: TokenData;
-        repoId: string;
+        installationId: string;
       };
-
-      // Look up installation ID for this repository
-      const installationId = (await this.storage.get(
-        `installation:${repoId}`
-      )) as string | null;
-
-      if (!installationId) {
-        return new Response("Installation ID not found for repository", {
-          status: 404,
-        });
-      }
 
       // Store token with installation-specific key
       const tokenKey = `token:${userId}:${installationId}`;
@@ -77,7 +66,6 @@ export class EscrowBox {
         userAId,
         prNumber,
         repoFullName,
-        repoId,
         prAuthor,
         prAuthorId,
         workerUrl,
@@ -87,7 +75,6 @@ export class EscrowBox {
         userAId: string;
         prNumber: number;
         repoFullName: string;
-        repoId: string;
         prAuthor?: string;
         prAuthorId?: string;
         workerUrl: string;
@@ -96,9 +83,6 @@ export class EscrowBox {
 
       // Use atomic transaction to avoid race conditions
       const result = await this.storage.transaction(async (txn) => {
-        // Store the installation ID for this repository
-        await txn.put(`installation:${repoId}`, installationId);
-
         // Validate that userA is not the same as prAuthor (can't approve your own PR)
         if (userA === prAuthor) {
           return {
@@ -143,7 +127,7 @@ export class EscrowBox {
           );
 
           if (!userAToken || !prAuthorToken) {
-            const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
+            const oauthUrl = `${workerUrl}/oauth/authorize?state=${installationId}`;
             let errorDetails = "";
 
             if (!userAToken && !prAuthorToken) {
@@ -208,7 +192,7 @@ export class EscrowBox {
             installationId
           );
           if (!userAToken) {
-            const oauthUrl = `${workerUrl}/oauth/authorize?state=${repoId}`;
+            const oauthUrl = `${workerUrl}/oauth/authorize?state=${installationId}`;
             return {
               type: "error",
               message: `@${userA} needs to authorize the app for this repository. Visit: ${oauthUrl}`,
